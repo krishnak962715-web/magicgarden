@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Magic Neon Garden</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            height: 100vh; display: flex; justify-content: center; align-items: center;
+            overflow: hidden; font-family: 'Segoe UI', sans-serif;
+            background: #87CEEB; transition: background 2s ease-in-out; touch-action: none;
+        }
+        body.night-mode { background: radial-gradient(circle at center, #1B2735 0%, #090A0F 100%); }
+        body.garden-night { background: #050508 !important; }
+
+        .sky { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; flex-direction: column; position: absolute; z-index: 10; }
+        .moon { position: absolute; top: -150px; right: 15%; width: 100px; height: 100px; background: #fefcd7; border-radius: 50%; box-shadow: 0 0 50px 15px rgba(254, 252, 215, 0.5); transition: 3s cubic-bezier(0.22, 1, 0.36, 1); }
+        body.night-mode .moon { top: 10%; }
+        
+        .text { font-size: 5rem; color: white; opacity: 0; transform: translateY(30px); transition: 2s ease; text-shadow: 0 0 20px rgba(255,255,255,0.8); }
+        body.night-mode .text.show { opacity: 1; transform: translateY(0); }
+        
+        #musicBtn { padding: 15px 40px; font-size: 1.2rem; font-weight: bold; cursor: pointer; border-radius: 50px; border: none; background: #ffebee; color: #ff4081; box-shadow: 0 10px 20px rgba(0,0,0,0.3); z-index: 100; transition: 0.4s; }
+        #mainBtn { padding: 15px 40px; font-size: 1.2rem; font-weight: bold; cursor: pointer; border-radius: 50px; border: none; background: white; color: #333; box-shadow: 0 10px 20px rgba(0,0,0,0.3); z-index: 100; display: none; transition: 0.4s; }
+        
+        #cuteBtn { padding: 10px 25px; font-size: 1rem; cursor: pointer; border-radius: 30px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(10px); position: absolute; opacity: 0; visibility: hidden; transition: 1s; z-index: 110; }
+        #cuteBtn.reveal { opacity: 1; visibility: visible; }
+        
+        .fade-out { opacity: 0 !important; visibility: hidden !important; pointer-events: none; transition: 1.5s; }
+        canvas { position: absolute; top: 0; left: 0; display: none; width: 100%; height: 100%; }
+        #hint { position: absolute; top: 30px; width: 100%; text-align: center; color: #00f2ff; font-size: 1.2rem; display: none; z-index: 100; text-shadow: 0 0 10px #00f2ff; }
+    </style>
+</head>
+<body>
+
+    <div id="hint">HIT THE HEART TO BLOOM ✨</div>
+    
+    <div class="sky" id="skyLayer">
+        <div class="moon" id="moon"></div>
+        <h1 class="text" id="gnText">Good Night</h1>
+        <button id="musicBtn">🎵 Play Song</button>
+        <button id="mainBtn">Switch to Night</button>
+        <button id="cuteBtn">Click here cutie 🥰</button>
+    </div>
+
+    <audio id="bgMusic" loop playsinline>
+        <source src="Song.mp3.mp3" type="audio/mpeg">
+    </audio>
+
+    <canvas id="c"></canvas>
+
+<script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const mainBtn = document.getElementById('mainBtn');
+    const musicBtn = document.getElementById('musicBtn');
+    const cuteBtn = document.getElementById('cuteBtn');
+    const skyLayer = document.getElementById('skyLayer');
+    const gnText = document.getElementById('gnText');
+    const bgMusic = document.getElementById('bgMusic');
+    const hintText = document.getElementById('hint');
+
+    musicBtn.onclick = () => {
+        bgMusic.play().catch(() => console.log("Silent mode issue"));
+        musicBtn.style.display = 'none';
+        mainBtn.style.display = 'block';
+    };
+
+    mainBtn.onclick = () => {
+        document.body.classList.add('night-mode');
+        gnText.classList.add('show');
+        mainBtn.classList.add('fade-out');
+        setTimeout(() => {
+            gnText.classList.add('fade-out');
+            setTimeout(() => cuteBtn.classList.add('reveal'), 800);
+        }, 3000);
+    };
+
+    let gameActive = false, gardenActive = false, isDragging = false;
+    let arrows = [], flowers = [], butterflies = [], stars = [], fireflies = [];
+    let heart = { x: 0, y: 150, size: 38, isFalling: false, vy: 0, gravity: 0.22 };
+    let bowX = 80, bowY, startX, startY, curX, curY, bowOpacity = 1;
+
+    class Firefly {
+        constructor() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.angle = Math.random() * Math.PI * 2; }
+        draw() {
+            this.x += Math.cos(this.angle) * 0.5; this.y += Math.sin(this.angle) * 0.5; this.angle += 0.02;
+            let glow = Math.abs(Math.sin(Date.now() * 0.002)) * 8;
+            ctx.fillStyle = "#ccff00"; ctx.shadowBlur = 10 + glow; ctx.shadowColor = "#ccff00";
+            ctx.beginPath(); ctx.arc(this.x, this.y, 1.2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        }
+    }
+
+    class Butterfly {
+        constructor() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.vx = (Math.random() - 0.5) * 2; this.vy = (Math.random() - 0.5) * 1.5; this.color = `hsl(${Math.random() * 60 + 180}, 100%, 75%)`; }
+        draw() {
+            this.x += this.vx; this.y += this.vy;
+            if(this.x < 0 || this.x > canvas.width) this.vx *= -1; if(this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            let flap = Math.abs(Math.sin(Date.now() * 0.012));
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.vy, this.vx));
+            ctx.shadowBlur = 15; ctx.shadowColor = this.color; ctx.fillStyle = this.color;
+            for(let side of [-1, 1]) { ctx.save(); ctx.scale(side * flap, 1); ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(10, -10, 15, 0, 5, 5); ctx.fill(); ctx.restore(); }
+            ctx.restore();
+        }
+    }
+
+    class Flower {
+        constructor(x, targetH, delay) {
+            this.x = x; this.baseY = canvas.height; this.targetH = targetH;
+            this.progress = 0; this.bloomProgress = 0; this.delay = Date.now() + delay;
+            this.swaySeed = Math.random() * 100;
+            this.color = `hsl(${180 + Math.random() * 20}, 100%, 75%)`;
+        }
+        draw() {
+            if (Date.now() < this.delay) return;
+            if (this.progress < 1) this.progress += 0.005;
+            let sway = Math.sin(Date.now() * 0.0015 + this.swaySeed) * (15 * this.progress);
+            let topX = this.x + sway; let topY = this.baseY - (this.targetH * this.progress);
+            
+            // Neon Stem
+            ctx.beginPath();
+            let stemGrad = ctx.createLinearGradient(this.x, this.baseY, topX, topY);
+            stemGrad.addColorStop(0, '#021010'); stemGrad.addColorStop(1, this.color);
+            ctx.strokeStyle = stemGrad; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+            ctx.moveTo(this.x, this.baseY); ctx.quadraticCurveTo(this.x + sway * 0.2, this.baseY - (this.targetH * this.progress * 0.6), topX, topY); ctx.stroke();
+            
+            if (this.progress > 0.85) { 
+                if (this.bloomProgress < 1) this.bloomProgress += 0.015; 
+                this.drawNeonBloom(topX, topY); 
+            }
+            ctx.shadowBlur = 0;
+        }
+        drawNeonBloom(x, y) {
+            ctx.save(); ctx.translate(x, y); ctx.scale(this.bloomProgress, this.bloomProgress);
+            ctx.shadowBlur = 35; ctx.shadowColor = this.color;
+            for (let j = 0; j < 2; j++) {
+                let layerScale = j === 0 ? 1 : 0.65;
+                for (let i = 0; i < 5; i++) {
+                    ctx.save(); ctx.rotate((Math.PI * 2 / 5) * i); ctx.scale(layerScale, layerScale);
+                    let pg = ctx.createRadialGradient(0, -15, 0, 0, -15, 30);
+                    pg.addColorStop(0, this.color); pg.addColorStop(1, 'transparent');
+                    ctx.fillStyle = pg; ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(-15, -10, -12, -38, 0, -45); ctx.bezierCurveTo(12, -38, 15, -10, 0, 0); ctx.fill();
+                    ctx.restore();
+                }
+            }
+            ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
+        }
+    }
+
+    cuteBtn.onclick = () => {
+        skyLayer.classList.add('fade-out');
+        setTimeout(() => {
+            skyLayer.style.display = 'none'; canvas.style.display = 'block'; hintText.style.display = 'block';
+            resize(); gameActive = true; animate();
+        }, 1200);
+    };
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; bowY = canvas.height - 120; heart.x = canvas.width / 2; }
+    window.onresize = resize;
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (gardenActive) {
+            stars.forEach(s => { ctx.fillStyle = "white"; ctx.fillRect(s.x, s.y, 2, 2); });
+            ctx.fillStyle = "#fefcd7"; ctx.shadowBlur = 50; ctx.shadowColor = "white";
+            ctx.beginPath(); ctx.arc(canvas.width*0.8, canvas.height*0.15, 50, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+            flowers.forEach(f => f.draw()); butterflies.forEach(b => b.draw()); fireflies.forEach(f => f.draw());
+        }
+        if (gameActive) {
+            ctx.save(); ctx.translate(heart.x, heart.y); ctx.fillStyle = "#ff0066"; ctx.shadowBlur = 25; ctx.shadowColor = "#ff0066";
+            if(heart.isFalling) {
+                ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fill(); heart.y += heart.vy; heart.vy += heart.gravity;
+                if(heart.y > canvas.height) {
+                    gameActive = false; gardenActive = true; document.body.classList.add('garden-night');
+                    for(let i=0; i<80; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*canvas.height*0.6, o: Math.random()});
+                    for(let i=0; i<12; i++) flowers.push(new Flower((canvas.width/11)*i, 200 + Math.random()*250, i*200));
+                    for(let i=0; i<8; i++) butterflies.push(new Butterfly());
+                    for(let i=0; i<20; i++) fireflies.push(new Firefly());
+                }
+            } else {
+                let s = heart.size + Math.sin(Date.now()/200)*3;
+                ctx.beginPath(); ctx.moveTo(0, s/4); ctx.bezierCurveTo(0,0,-s,0,-s,s/2); ctx.bezierCurveTo(-s,s,0,s*1.3,0,s*1.6); ctx.bezierCurveTo(0,s*1.3,s,s,s,s/2); ctx.bezierCurveTo(s,0,0,0,0,s/4); ctx.fill();
+            }
+            ctx.restore();
+            
+            if(heart.isFalling && bowOpacity > 0) bowOpacity -= 0.05;
+            if(bowOpacity > 0) {
+                let angle = isDragging ? Math.atan2(startY - curY, startX - curX) : -0.8; 
+                let pull = isDragging ? Math.min(Math.hypot(startX-curX, startY-curY), 70) : 0;
+                ctx.save(); ctx.globalAlpha = bowOpacity; ctx.translate(bowX, bowY); ctx.rotate(angle);
+                ctx.beginPath(); ctx.moveTo(0,-65); ctx.quadraticCurveTo(-pull*1.2, 0, 0, 65); ctx.strokeStyle="#00f2ff"; ctx.lineWidth = 3; ctx.stroke();
+                ctx.lineWidth=10; ctx.strokeStyle="#5d4037"; ctx.beginPath(); ctx.moveTo(0,-65); ctx.bezierCurveTo(40,-30,40,30,0,65); ctx.stroke();
+                ctx.restore();
+            }
+
+            arrows.forEach((ar) => {
+                ar.x += ar.vx; ar.y += ar.vy; ar.vy += 0.25;
+                if(!heart.isFalling && Math.hypot(ar.x-heart.x, ar.y-heart.y) < 40) { heart.isFalling = true; heart.vy = -4; hintText.style.display = "none"; }
+                ctx.save(); ctx.translate(ar.x, ar.y); ctx.rotate(Math.atan2(ar.vy, ar.vx));
+                ctx.fillStyle="#fff"; ctx.fillRect(-20, -1, 40, 2); ctx.restore();
+            });
+        }
+        requestAnimationFrame(animate);
+    }
+
+    window.onmousedown = window.ontouchstart = (e) => { if(!gameActive || heart.isFalling) return; isDragging = true; let p = e.touches ? e.touches[0] : e; startX = curX = p.clientX; startY = curY = p.clientY; };
+    window.onmousemove = window.ontouchmove = (e) => { if(isDragging) { let p = e.touches ? e.touches[0] : e; curX = p.clientX; curY = p.clientY; } };
+    window.onmouseup = window.ontouchend = () => { if(!isDragging) return; isDragging = false; let dx = startX - curX, dy = startY - curY; arrows.push({x: bowX, y: bowY, vx: dx/8, vy: dy/8}); };
+</script>
+</body>
+</html>
